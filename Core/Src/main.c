@@ -19,7 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-
+#include <stdio.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -68,7 +68,13 @@ void StartDefaultTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static uint16_t enc_transfer(uint16_t tx){
+	uint16_t rx = 0;
+	HAL_GPIO_WritePin(ENC_CS_GPIO_Port, ENC_CS_Pin, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(&hspi2, (uint8_t *)&tx, (uint8_t *)&rx, 1, 10);
+	HAL_GPIO_WritePin(ENC_CS_GPIO_Port, ENC_CS_Pin, GPIO_PIN_SET);
+	return rx;
+}
 /* USER CODE END 0 */
 
 /**
@@ -304,12 +310,26 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-	  while(1){
-		  uint8_t rx_buffer;
-		  if(HAL_UART_Receive(&hcom_uart[COM1], &rx_buffer, 1, HAL_MAX_DELAY) == HAL_OK){
-			  HAL_UART_Transmit(&hcom_uart[COM1], &rx_buffer, 1, HAL_MAX_DELAY);
-		  }
-	  }
+	//  while(1){
+	char msg[48];
+	uint16_t reply;
+
+	osDelay(20);
+	for(;;){
+		enc_transfer(0xFFFF);
+		reply = enc_transfer(0xFFFF);
+
+	    int len = snprintf(msg, sizeof(msg),
+	                       "raw=0x%04X angle=%u err=%u\r\n",
+	                       (unsigned)reply,
+	                       (unsigned)(reply & 0x3FFF),
+	                       (unsigned)((reply >> 14) & 1U));
+	    HAL_UART_Transmit(&hcom_uart[COM1], (uint8_t *)msg, (uint16_t)len, 100);
+	    osDelay(100);
+
+	}
+
+
   /* USER CODE END 5 */
 }
 
